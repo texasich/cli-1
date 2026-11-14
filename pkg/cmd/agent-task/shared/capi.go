@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/cli/cli/v2/api"
@@ -63,6 +65,11 @@ func resolveCapiURL(httpClient *http.Client, host string) (string, error) {
 
 	if resp.Viewer.CopilotEndpoints.Api == "" {
 		return "", errors.New("empty Copilot API URL returned")
+	}
+
+	u, err := url.Parse(resp.Viewer.CopilotEndpoints.Api)
+	if err != nil || !strings.EqualFold(u.Scheme, "https") || u.Hostname() == "" || u.User != nil {
+		return "", fmt.Errorf("invalid Copilot API URL returned: %q", resp.Viewer.CopilotEndpoints.Api)
 	}
 
 	return resp.Viewer.CopilotEndpoints.Api, nil

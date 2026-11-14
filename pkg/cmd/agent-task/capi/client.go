@@ -4,8 +4,10 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/cli/cli/v2/internal/gh"
+	ghauth "github.com/cli/go-gh/v2/pkg/auth"
 )
 
 //go:generate moq -rm -out client_mock.go . CapiClient
@@ -60,7 +62,7 @@ type capiTransport struct {
 
 func newCAPITransport(authCfg authConfig, host string, capiBaseURL string, rp http.RoundTripper) *capiTransport {
 	capiHost := ""
-	if u, err := url.Parse(capiBaseURL); err == nil {
+	if u, err := url.Parse(capiBaseURL); err == nil && strings.EqualFold(u.Scheme, "https") && u.Hostname() != "" && u.User == nil {
 		capiHost = u.Host
 	}
 	return &capiTransport{
@@ -72,6 +74,11 @@ func newCAPITransport(authCfg authConfig, host string, capiBaseURL string, rp ht
 }
 
 func (ct *capiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if !ct.shouldAttachAuth(req) {
+		req.Header.Del("Authorization")
+		return ct.rp.RoundTrip(req)
+	}
+
 	// Resolve the token per request so an expiring token is refreshed just before use. The base transport's own
 	// refresh is skipped once we set the Authorization header, so the CAPI transport must refresh here itself.
 	// Refresh is best effort: a failed refresh still yields the last stored token and the API decides its validity.
@@ -81,11 +88,30 @@ func (ct *capiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Since this RoundTrip is reused for both Copilot API and
 	// GitHub API requests, we conditionally add the integration
 	// ID only when performing requests to the Copilot API.
-	if req.URL.Host == ct.capiHost {
+	if ct.capiHost != "" && strings.EqualFold(req.URL.Host, ct.capiHost) {
 		req.Header.Add("Copilot-Integration-Id", "copilot-4-cli")
 
 		// Ensure we are not using GitHub API versions while targeting CAPI.
 		req.Header.Set("X-GitHub-Api-Version", "2026-01-09")
 	}
 	return ct.rp.RoundTrip(req)
+}
+
+func (ct *capiTransport) shouldAttachAuth(req *http.Request) bool {
+	if req == nil || req.URL == nil || !strings.EqualFold(req.URL.Scheme, "https") {
+		return false
+	}
+	if req.Response != nil && req.Response.Request != nil && req.Response.Request.URL != nil {
+		prevURL := req.Response.Request.URL
+		if !strings.EqualFold(req.URL.Host, prevURL.Host) || !strings.EqualFold(req.URL.Scheme, prevURL.Scheme) {
+			return false
+		}
+	}
+	if ct.capiHost != "" && strings.EqualFold(req.URL.Host, ct.capiHost) {
+		return true
+	}
+	if ct.host != "" && strings.EqualFold(ghauth.NormalizeHostname(req.URL.Hostname()), ghauth.NormalizeHostname(ct.host)) {
+		return true
+	}
+	return false
 }

@@ -35,6 +35,16 @@ func TestResolveCapiURL(t *testing.T) {
 			resp:    `{"data":{"viewer":{"copilotEndpoints":{"api":""}}}}`,
 			wantErr: true,
 		},
+		{
+			name:    "non-https URL returns error",
+			resp:    `{"data":{"viewer":{"copilotEndpoints":{"api":"http://test-copilot-api.example.com"}}}}`,
+			wantErr: true,
+		},
+		{
+			name:    "URL with userinfo returns error",
+			resp:    `{"data":{"viewer":{"copilotEndpoints":{"api":"https://user:pass@test-copilot-api.example.com"}}}}`,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
