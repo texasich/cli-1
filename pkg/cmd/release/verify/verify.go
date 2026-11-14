@@ -92,6 +92,7 @@ func NewCmdVerify(f *cmdutil.Factory, runF func(config *VerifyConfig) error) *co
 				ExternalHttpClient: externalClient,
 				IO:                 io,
 				TrustedRoot:        opts.TrustedRoot,
+				BaseRepo:           baseRepo,
 			}
 
 			config := &VerifyConfig{
@@ -197,6 +198,9 @@ func printVerifiedSubjects(io *iostreams.IOStreams, att *verification.Attestatio
 	cs := io.ColorScheme()
 	w := io.Out
 
+	if att == nil || att.Attestation == nil || att.Attestation.Bundle == nil || att.Attestation.Bundle.GetDsseEnvelope() == nil {
+		return fmt.Errorf("attestation bundle does not contain a DSSE envelope")
+	}
 	statement := att.Attestation.Bundle.GetDsseEnvelope().Payload
 	var statementData v1.Statement
 

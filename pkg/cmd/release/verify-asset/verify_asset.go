@@ -96,6 +96,7 @@ func NewCmdVerifyAsset(f *cmdutil.Factory, runF func(*VerifyAssetConfig) error) 
 				ExternalHttpClient: externalClient,
 				IO:                 io,
 				TrustedRoot:        opts.TrustedRoot,
+				BaseRepo:           baseRepo,
 			}
 
 			config := &VerifyAssetConfig{
