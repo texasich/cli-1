@@ -1,11 +1,12 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
+	v1 "github.com/in-toto/attestation/go/v1"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var ErrNoAttestationsFound = errors.New("no attestations found")
@@ -28,14 +29,17 @@ func FilterAttestations(predicateType string, attestations []*Attestation) ([]*A
 	filteredAttestations := []*Attestation{}
 
 	for _, each := range attestations {
+		if each == nil || each.Bundle == nil {
+			continue
+		}
 		dsseEnvelope := each.Bundle.GetDsseEnvelope()
 		if dsseEnvelope != nil {
 			if dsseEnvelope.PayloadType != "application/vnd.in-toto+json" {
 				// Don't fail just because an entry isn't intoto
 				continue
 			}
-			var intotoStatement IntotoStatement
-			if err := json.Unmarshal([]byte(dsseEnvelope.Payload), &intotoStatement); err != nil {
+			var intotoStatement v1.Statement
+			if err := protojson.Unmarshal(dsseEnvelope.Payload, &intotoStatement); err != nil {
 				// Don't fail just because a single entry can't be unmarshalled
 				continue
 			}

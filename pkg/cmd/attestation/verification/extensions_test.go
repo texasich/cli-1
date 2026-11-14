@@ -3,6 +3,7 @@ package verification
 import (
 	"testing"
 
+	in_toto "github.com/in-toto/attestation/go/v1"
 	"github.com/sigstore/sigstore-go/pkg/fulcio/certificate"
 	"github.com/sigstore/sigstore-go/pkg/verify"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,9 @@ import (
 func createSampleResult() *AttestationProcessingResult {
 	return &AttestationProcessingResult{
 		VerificationResult: &verify.VerificationResult{
+			Statement: &in_toto.Statement{
+				PredicateType: SLSAPredicateV1,
+			},
 			Signature: &verify.SignatureVerificationResult{
 				Certificate: &certificate.Summary{
 					SourceRepositoryOwnerURI: "https://github.com/owner",
@@ -34,7 +38,8 @@ func TestVerifyCertExtensions(t *testing.T) {
 	}
 
 	c := EnforcementCriteria{
-		Certificate: certSummary,
+		Certificate:   certSummary,
+		PredicateType: SLSAPredicateV1,
 	}
 
 	t.Run("passes with one result", func(t *testing.T) {
@@ -101,6 +106,22 @@ func TestVerifyCertExtensions(t *testing.T) {
 		expectedResults[0].VerificationResult.Signature.Certificate.Extensions.SourceRepositoryRef = "refs/heads/MAIN"
 		verified, err := VerifyCertExtensions(expectedResults, c)
 		require.ErrorContains(t, err, "expected SourceRepositoryRef to be refs/heads/main, got refs/heads/MAIN")
+		require.Nil(t, verified)
+	})
+
+	t.Run("with missing Statement", func(t *testing.T) {
+		expectedResults := []*AttestationProcessingResult{createSampleResult()}
+		expectedResults[0].VerificationResult.Statement = nil
+		verified, err := VerifyCertExtensions(expectedResults, c)
+		require.ErrorContains(t, err, "attestation verification result is missing an in-toto statement")
+		require.Nil(t, verified)
+	})
+
+	t.Run("with wrong PredicateType", func(t *testing.T) {
+		expectedCriteria := c
+		expectedCriteria.PredicateType = "https://spdx.dev/Document/v2.3"
+		verified, err := VerifyCertExtensions(results, expectedCriteria)
+		require.ErrorContains(t, err, "expected PredicateType to be https://spdx.dev/Document/v2.3, got https://slsa.dev/provenance/v1")
 		require.Nil(t, verified)
 	})
 }

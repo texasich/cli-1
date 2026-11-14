@@ -22,6 +22,14 @@ func VerifyCertExtensions(results []*AttestationProcessingResult, ec Enforcement
 	verified := make([]*AttestationProcessingResult, 0, len(results))
 	var lastErr error
 	for _, attestation := range results {
+		if attestation.VerificationResult == nil || attestation.VerificationResult.Statement == nil {
+			lastErr = errors.New("attestation verification result is missing an in-toto statement")
+			continue
+		}
+		if ec.PredicateType != "" && attestation.VerificationResult.Statement.PredicateType != ec.PredicateType {
+			lastErr = fmt.Errorf("expected PredicateType to be %s, got %s", ec.PredicateType, attestation.VerificationResult.Statement.PredicateType)
+			continue
+		}
 		if err := verifyCertExtensions(*attestation.VerificationResult.Signature.Certificate, ec.Certificate); err != nil {
 			lastErr = err
 			// move onto the next attestation in the for loop if verification fails
